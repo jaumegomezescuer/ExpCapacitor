@@ -1,6 +1,7 @@
 # Import library
 import numpy as np
 from scipy.integrate import simpson
+import pandas as pd
 
 
 def ExtractCycles(dfData, ContactPosition=8, ContactForce=None, Latency=10e-3, CurrentTh=None):
@@ -29,6 +30,8 @@ def ExtractCycles(dfData, ContactPosition=8, ContactForce=None, Latency=10e-3, C
         StartIndexs = Indexs[StartInds]
         EndIndexs = Indexs[StartInds - 1][1:]
         EndIndexs = np.hstack((EndIndexs, Indexs[-1]))
+        print('StartInds')
+        print(dfData.Time[StartIndexs].values)
     elif ContactForce is not None:
         dt = dfData.Time[dfData['Force'] > ContactForce].diff()
         StartInds = np.where(dt > Latency)[0]
@@ -50,8 +53,9 @@ def ExtractCycles(dfData, ContactPosition=8, ContactForce=None, Latency=10e-3, C
     print(nSampsCycle)
     nSampsCycle = np.max(nSampsCycle)
 
-    CyclesList = []
-    for ic, st in enumerate(StartIndexs):
+    CyclesList =[]
+
+    for ic, st in enumerate(StartIndexs[:-1]):
         ed = st + nSampsCycle
         if ed > dfData.shape[0]:
             ed = dfData.shape[0]-1
@@ -61,8 +65,8 @@ def ExtractCycles(dfData, ContactPosition=8, ContactForce=None, Latency=10e-3, C
         # Obtiene el valor de voltaje en el índice de inicio del ciclo
 
         # Calculate sign transition time
-        if CurrentTh is None:
-            IndHalf = int(data.shape[0] / 2)
+        # if CurrentTh is None:
+        #    IndHalf = int(data.shape[0] / 2)
             #pos=data.Time[data.Position == data.Position.min()]
             #min_position_value = dfData['Position'].min()  # Obtiene el valor mínimo de la columna 'Position'
             # min_time = dfData.loc[dfData['Position'] == min_position_value, 'Time'].iloc[0]  # Obtiene el tiempo correspondiente al valor mínimo de la posición
@@ -73,33 +77,41 @@ def ExtractCycles(dfData, ContactPosition=8, ContactForce=None, Latency=10e-3, C
             #   print(min_position_index)
             #print(IndHalf)
 
-        else:
-            hindexes = data[data.Current > CurrentTh].index
-            if len(hindexes) == 0:
-                print('No Current Threshold crossed')
-                IndHalf = int(data.shape[0] / 2)
-            else:
-                IndHalf = hindexes[-1]
-            print(f'Time Transition {data.Time[IndHalf]} {IndHalf}')
+
+        #  else:
+        #   hindexes = data[data.Current > CurrentTh].index
+        #   if len(hindexes) == 0:
+        #       print('No Current Threshold crossed')
+        #       IndHalf = int(data.shape[0] / 2)
+        #   else:
+        #       IndHalf = hindexes[-1]
+        #   print(f'Time Transition {data.Time[IndHalf]} {IndHalf}')
+        IndHalf = int(data.shape[0] / 2)
         imax = data.Current.idxmax()
         imin = data.Current.idxmin()
+        data['Voltage']= data['Voltage'] - data.iloc[0]['Voltage']
+
+
+        data['Power'] = data['Current'] * data['Voltage']
+
+
         Cycle = {'Data': data,  # Dataframe with recorded data
                  'Cycle': ic,  # Cycle number
                  'tStart': dfData.Time[st],  # Cycle Start time
                  'PosStart': dfData.Position[st],  # Cycle Start position
                  'tEnd': dfData.Time[ed],  # Cycle End time
                  'PosEnd': dfData.Position[ed],  # Cycle End position
-                 'IMax': data.Current[imax],  # Max current
-                 'PosIMax': dfData.Position[imax],  # Position of max current
-                 'IMin': data.Current[imin],  # Min current
-                 'PosIMin': dfData.Position[imin],  # Position of min current
+                  'IMax': data.Current[imax],  # Max current
+                 # 'PosIMax': dfData.Position[imax],  # Position of max current
+                  'IMin': data.Current[imin],  # Min current
+               # 'PosIMin': dfData.Position[imin],  # Position of min current
                  'VMax': data.Voltage.max(),  # Max voltage
                  'VMin': data.Voltage.min(),  # Min voltage
-                 #  'tTransition': data.Time[IndHalf],  # Transition time between positive and negative current
-                 #  'PosPMax': dfData.Power[:IndHalf].max(),  # Max positive power
-                 # 'NegPMax': dfData.Power[IndHalf:].max(),  # Max negative power
-                 #    'PosEnergy': simpson(y=data.Power[:IndHalf], x=data.Time[:IndHalf]),  # Positive energy
-                 #   'NegEnergy': simpson(y=data.Power[IndHalf:], x=data.Time[IndHalf:]),  # Negative energy
+                 'tTransition': data.Time[IndHalf],  # Transition time between positive and negative current
+                  'PosPMax': dfData.Power[:IndHalf].max(),  # Max positive power
+                 'NegPMax': dfData.Power[IndHalf:].max(),  # Max negative power
+                  'PosEnergy': simpson(y=data.Power[:IndHalf], x=data.Time[:IndHalf]),  # Positive energy
+                  'NegEnergy': simpson(y=data.Power[IndHalf:], x=data.Time[IndHalf:]),  # Negative energy
                  'Energy': simpson(y=data.Power, x=data.Time),  #Total energy
                  }
         CyclesList.append(Cycle)

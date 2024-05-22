@@ -8,6 +8,7 @@ MotColumnRenames = {
     'Time(s)': 'Time',
     'MC SW Overview - Actual Position(mm)': 'Position',
     'MC SW Force Control - Measured Force(N)': 'Force',
+
 }
 
 DQAColumnRenames = {
@@ -92,6 +93,7 @@ def Loadfiles(ExpDef):
     # Load Motor file
     dfMOT = LoadMotorFile(r.MotorFile)
 
+
     # Motor sampling Rate
     MotFs = 1 / dfMOT.Time.diff().mean()
     print(f'Motor sampling rate: {MotFs}')
@@ -113,21 +115,22 @@ def Loadfiles(ExpDef):
             continue
         dfData[col] = np.interp(dfData.Time, dfMOT.Time, dfMOT[col])
 
+
     # Calculate Voltage, Current and Power
     window_sizes = 20  # Tamaño de la ventana del filtro
 
-    window_size = 40  # Tamaño de la ventana del filtro
-    dfData['SmoothVoltages'] = dfData['Voltage'].rolling(window=window_size).median()
-    dfData['SmoothVoltage'] = dfData['SmoothVoltages'].rolling(window=window_sizes).mean()
+    window_size = 25  # Tamaño de la ventana del filtro
+    dfData['Voltage'] = dfData['Voltage'].rolling(window=window_size).median()
+    dfData['Voltage'] = dfData['Voltage'].rolling(window=window_sizes).mean()
 
     dfData['VoltageAcq'] = dfData['Voltage']
 
     # Calcular la derivada de Voltage respecto al tiempo (dv/dt)
-    dV_dt = dfData['SmoothVoltage'].diff() / dfData['Time'].diff()
+    dV_dt = dfData['Voltage'].diff() / dfData['Time'].diff()
 
     # Multiplicar la capacidad (C) por la derivada de V respecto al tiempo (dv/dt) para obtener el corriente
     dfData['Current'] = dV_dt * r.Cap
 
     # Calcular la potencia
-    dfData['Power'] = dfData['Current'] * dfData['SmoothVoltage']
+    dfData['Power'] = dfData['Current'] * dfData['Voltage']
     return dfData

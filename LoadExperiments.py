@@ -16,7 +16,7 @@ plt.close('all')
 plt.ion()
 
 DataDir = './Data/'
-ExpDef = './Data/Experimentss.ods'
+ExpDef = './Data/ExperimentsCap.ods'
 CapDef = './Data/CapacitorDescription1.ods'
 
 PDF = PdfPages('./Reports/LoadReport.pdf')
@@ -27,12 +27,10 @@ FindCyclesBy = 'Position'
 # %% Load Experiments
 dfExp = pd.read_excel(ExpDef)
 dfLoads = pd.read_excel(CapDef)
-dfLoads.Cap = (dfLoads.Cap * 10**(-9) )  # to convert into Ohms
+dfLoads.Cap = (dfLoads.Cap * 10**(-9) )  # to convert into Farads
 dfExps = dfExp.query("TribuId == ('SwTENG-CB')")
-# dfExps = dfExp.query("ExpId == '0803-")
+#dfExps = dfExp
 # dfExps = dfExp.query("ExpId == '0403-RL034'")
-
-
 
 
 # %% Add Loads Fields
@@ -68,11 +66,15 @@ for index, r in dfExps.iterrows():
     # Reference position and force
     dfData.Position = dfData.Position - dfData.Position.min()
     dfData.Force = -dfData.Force
-    dfData = dfData[dfData['Voltage'] <= 10]
-
+    #dfData = dfData[dfData['Voltage'] <= 10]
 
     # dfData = dfData.query('Voltage < 10')
     # dfData = dfData.query('Time > 1')
+    #dfData = dfData[dfData['Voltage'] < 9.9]
+    if (dfData['Voltage'] >= 10).any():
+        first_index = dfData[dfData['Voltage'] >= 10].index[0]
+        dfData = dfData.loc[:first_index - 1]
+    # Verificar si hay alguna fila donde el Voltage es mayor o igual a 10
 
     # Calculate Contact Position
     if FindCyclesBy == 'Position':
@@ -96,48 +98,68 @@ for index, r in dfExps.iterrows():
         cy.update(r.to_dict())
     dfCycle = pd.DataFrame(CyclesList)
     dfCycles = pd.concat([dfCycles, dfCycle])
-    dfCycles = dfCycles.query("Cycle > 0")
-    dfCycles = dfCycles.query("Cycle < 2")
+
+
+    #dfCycles = dfCycles.query("Cycle > 0")
+    #dfCycles = dfCycles.query("Cycle < 6")
 
     #  dfCycle = dfCycle.query("Cycle > 1")
     # dfFilteredCycle = dfCycle.query('Cycle > 0')
-    filtered_cycles = [cy for cy in CyclesList if cy['Cycle'] > 0]
-    last_cycle = CyclesList[-1]
-    if last_cycle['Cycle'] > 0:
-        filtered_cycles.append(last_cycle)
+    # filtered_cycles = [cy for cy in CyclesList if cy['Cycle'] > 0]
+    # last_cycle = CyclesList[-1]
+    # if last_cycle['Cycle'] > 0:
+    #    filtered_cycles.append(last_cycle)
+
+
     #    filtered_cycles = [cy for cy in CyclesList if cy['Cycle'] > 0]
 
     # Generate Debug Figures
     XVar = 'Time'
-    AxsDict, PlotCols = GenFigure(dfData, xVar=XVar, axisFactor=0.1, figsize=(12, 5))
-    for col, ax in AxsDict.items():
-        ax.set_xlabel(XVar)
-        ax.plot(dfData[XVar], dfData[col], PlotCols[col])
+    XLabel = 'Time (s)'
+    AxsDict, VarColors = GenFigure(dfData, xVar=XVar,xLabel =XLabel, axisFactor=0.1, figsize=(12, 5))
+    for var, ax in AxsDict.items():
+        if 'Factor' in VarColors[var]:
+            ptdata = dfData[var] * VarColors[var]['Factor']
+        else:
+            ptdata = dfData[var]
+        ax.plot(dfData[XVar], ptdata, **VarColors[var]['LineKwarg'])
 
-    for cy in filtered_cycles:
-        ax.axvline(x=cy['tStart'], color='y', linewidth=2)
-        ax.axvline(x=cy['tEnd'], color='y', linestyle='-.', linewidth=2)
-        ax.axvline(x=cy['tStart'] , color='y', linestyle='--', linewidth=1)
+    for index, r in dfCycle.iterrows():
+        ax.axvline(x=r.tStart, color='y', linewidth=2)
+        ax.axvline(x=r.tEnd, color='y', linestyle='-.', linewidth=2)
+        ax.axvline(x=r.tStart + r.tTransition, color='y', linestyle='--', linewidth=1)
     fig = ax.get_figure()
+
     fig.suptitle(r.ExpId)
     fig.tight_layout()
-    PDF.savefig(fig)
+    PDF.savefig(fig, bbox_inches='tight')
 
     XVar = 'Position'
-    AxsDict, PlotCols = GenFigure(dfData, xVar=XVar, figsize=(10, 5))
-    for col, ax in AxsDict.items():
-        ax.set_xlabel(XVar)
-        ax.plot(dfData[XVar], dfData[col], PlotCols[col])
-    ax.set_xlim(0, np.mean([cy['PosStart'] for cy in filtered_cycles]))
+    XLabel = 'Position (mm)'
+    AxsDict, VarColors = GenFigure(dfData, xVar=XVar, xLabel =XLabel,figsize=(12, 5))
+    for var, ax in AxsDict.items():
+        if 'Factor' in VarColors[var]:
+            ptdata = dfData[var] * VarColors[var]['Factor']
+        else:
+            ptdata = dfData[var]
+        ax.plot(dfData[XVar], ptdata, **VarColors[var]['LineKwarg'])
+
+    ax.set_xlim(0, 3)
+
     fig = ax.get_figure()
     fig.suptitle(r.ExpId)
     fig.tight_layout()
-    PDF.savefig(fig)
+    PDF.savefig(fig, bbox_inches='tight')
     plt.close('all')
 
 plt.ion()
 PDF.close()
-dfCycles['Imp'] = 1/(dfCycles['Cap'] )
+
+dfCycles.reset_index(inplace=True, drop=True)
+
+
+
+dfCycles['Imp'] = 1/(dfCycles['Cap'])
 dfCycles = dfCycles.astype({'Gain': float,
                             'Cap': float,
                             })
